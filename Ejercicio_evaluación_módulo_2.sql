@@ -212,23 +212,98 @@ INNER JOIN film_category AS f_c
 ON f.film_id = f_c.film_id
 INNER JOIN category AS c
 ON f_c.category_id = c.category_id
-WHERE c.name = "Family"
+WHERE c.name = "Family";
 
 -- 18: Muestra el nombre y apellido de los actores que aparecen en más de 10 películas.
+-- esquema: actor (actor_id, first_name, last_name) <--> film_actor (actor_id, film_id) <--> film (film_id, title)
+-- saco los actores (nombre y apellido) y la cantidad de películas en las que aparecen
+SELECT a.first_name, a.last_name, COUNT(f.film_id) AS su_cantidad_de_películas
+FROM actor AS a
+JOIN film_actor AS f_a
+ON a.actor_id = f_a.actor_id
+JOIN film AS f
+ON f_a.film_id = f.film_id
+GROUP BY a.first_name, a.last_name;
 
+-- mi solución: nombre y apellido de los actores que aparecen en más de 10 películas usando COUNT para hacer el recuento, un GROUP BY para agruparlos por nombre y apellido
+-- y HAVING para realizar la condición de "más de 10", pues COUNT es una función de agregación que nos da un recuento que no existe en la tabla original, nos da una columna de grupo nueva
+-- (que es cuando usamos el HAVING). Si la columna estuviera en la tabla podría usar un WHERE.
+SELECT a.first_name, a.last_name
+FROM actor AS a
+JOIN film_actor AS f_a
+ON a.actor_id = f_a.actor_id
+JOIN film AS f
+ON f_a.film_id = f.film_id
+GROUP BY a.first_name, a.last_name
+HAVING COUNT(f.film_id) > 10;
+-- a mi parecer es más correcto incluir su_cantidad_de_películas por si fuera necesario saber cuántas peliculas (pero no lo pone el enunciado, lo dejo a parte)
+SELECT a.first_name, a.last_name, COUNT(f.film_id) AS su_cantidad_de_películas
+FROM actor AS a
+JOIN film_actor AS f_a
+ON a.actor_id = f_a.actor_id
+JOIN film AS f
+ON f_a.film_id = f.film_id
+GROUP BY a.first_name, a.last_name
+HAVING COUNT(f.film_id) > 10;
 
+-- 19: Encuentra el título de todas las películas que son "R" y tienen una duración mayor a 2 horas en la tabla film.
+-- entiendo que por "las películas que son "R"" se refiere al rating (tenemos PG, G, NC-17, PG-13 y R), 
+-- y que duración mayor a 2 horas (son 120 min) se refiere a length > 120 
+-- esquema: film (title, rating, length)
+SELECT title, rating, length
+FROM film; -- seviso los datos en film
+SELECT title, rating, length
+FROM film
+WHERE rating = "R" AND length > 120;
 
+-- mi solución: uso WHERE porque rating y length son 2 columnas de la tabla film (condiciones individuales)
+SELECT title
+FROM film
+WHERE rating = "R" AND length > 120;
 
+-- 20: Encuentra las categorías de películas que tienen un promedio de duración superior a 120 minutos y muestra el nombre de la categoría junto con el promedio de duración.
+-- entiendo que promedio de duración superior a 120 minutos es AVG(length) > 120
+-- esquema: category (category_id, name) <--> film_category (category_id, film_id) <--> film (film_id, title, length)
+SELECT AVG(length)
+FROM film; -- 115.27 la media de duración de las películas
 
+-- mi solución: uso AVG(f.length) para sacar la media de duración y agrupando con GROUP BY me da la media de duración de cada categoría
+-- y ahora uso HAVING para poner la condición "promedio de duración superior a 120 minutos" con la función de agragación AVG que es una columna que no existe en la tabla original
+SELECT c.name AS nombre_categoría, AVG(f.length) AS promedio_duración
+FROM category AS c
+JOIN film_category AS f_c
+ON c.category_id = f_c.category_id
+JOIN film AS f
+ON f_c.film_id = f.film_id
+GROUP BY c.name
+HAVING AVG(length) > 120;
 
+-- 21: Encuentra los actores que han actuado en al menos 5 películas y muestra el nombre del actor junto con la cantidad de películas en las que han actuado.
+-- esquema: actor (actor_id, first_name, last_name) <--> film_actor (actor_id, film_id) <--> film (film_id, title)
+-- actores y su cantidad de películas (en las que han acuado):
+SELECT a.first_name, a.last_name, COUNT(f.film_id) AS cantidad_películas
+FROM actor AS a
+JOIN film_actor AS f_a
+ON a.actor_id = f_a.actor_id
+JOIN film AS f
+ON f_a.film_id = f.film_id
+GROUP BY a.first_name, a.last_name
+ORDER BY cantidad_películas; -- todos han actuado en más de 5 películas. Pero ¿y si no fuera así?
 
+-- mi solución: uso COUNT para hacer el recuento de cantidad de películas, uno las 3 tablas con JOIN (que es un INNER join), y uso GROUP BY para agrupar por nombre y apellido 
+-- (podría haber usado el actor_id en su lugar) y HAVING para la condición de "al menos 5" (que entiendo por ">= 5") "cantidad de películas" que es una columna q no existe en film
+SELECT a.first_name, a.last_name, COUNT(f.film_id) AS cantidad_películas
+FROM actor AS a
+JOIN film_actor AS f_a
+ON a.actor_id = f_a.actor_id
+JOIN film AS f
+ON f_a.film_id = f.film_id
+GROUP BY a.first_name, a.last_name
+HAVING cantidad_películas >= 5
+ORDER BY cantidad_películas;
 
-
-
-
-
-
-
+-- 22: Encuentra el título de todas las películas que fueron alquiladas por más de 5 días. Utiliza una subconsulta para encontrar los rental_ids con una duración superior a 5 días 
+-- y luego selecciona las películas correspondientes.
 
 
 
