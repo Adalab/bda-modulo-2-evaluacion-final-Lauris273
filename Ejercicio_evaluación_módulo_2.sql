@@ -52,10 +52,10 @@ WHERE length > 120;
 SELECT actor_id, first_name, last_name
 FROM actor; -- aqui tengo los nombres y apellidos, pero se solicita sólo nombre (salen 200 rows)
 
-SELECT concat(first_name, ' ', last_name) AS nombre_completo_actor
+SELECT CONCAT(first_name, ' ', last_name) AS nombre_completo_actor
 FROM actor; -- podría unirlos en una columna para confirmar que cada nombre va con su apellido (salen 200 rows)
 
--- mi solución: poniendo sólo first_name tenemos los nombres de todos los actores (salen 200 rows)
+-- mi solución: poniendo sólo first_name tenemos los nombres de todos los actores (salen 200 rows) (solicitan nombres, aunque veo más completa la del CONCAT)
 SELECT first_name
 FROM actor;
 
@@ -83,6 +83,9 @@ FROM actor
 WHERE actor_id >= 10 AND actor_id <= 20; -- actor_id entre 10 y 20, incluyendo 10 y 20
 SELECT first_name
 FROM actor
+WHERE actor_id BETWEEN 10 AND 20; -- actor_id entre 10 y 20, incluyendo 10 y 20, con BETWEEN
+SELECT first_name
+FROM actor
 WHERE actor_id > 10 AND actor_id < 20; -- actor_id entre 10 y 20, excluyendo 10 y 20
 
 -- 8: Encuentra el título de las películas en la tabla film que no sean ni "R" ni "PG-13" en cuanto a su clasificación.
@@ -98,10 +101,13 @@ WHERE rating <> "PG-13" AND rating <> "R";
 SELECT title
 FROM film
 WHERE rating <> "PG-13" AND rating <> "R";
--- sinceramente yo lo veo más completo con éste que sigue (lo incluyo por si fuera interesante saber la clasificación para el solicitante):
+SELECT title
+FROM film
+WHERE rating NOT IN ("PG-13", "R"); -- otra opción sería usar el NOT IN que excluye los valores dados de la lista de valores de rating
+-- sinceramente yo veo más completo con éste que sigue (lo incluyo por si fuera interesante saber la clasificación para el solicitante):
 SELECT title, rating AS clasificación
 FROM film
-WHERE rating <> "PG-13" AND rating <> "R";
+WHERE rating NOT IN ("PG-13", "R");
 
 -- 9: Encuentra la cantidad total de películas en cada clasificación de la tabla film y muestra la clasificación junto con el recuento.
 -- esquema: film (film_id, title, rating)
@@ -174,6 +180,9 @@ WHERE f.title = "Indian Love";
 SELECT title
 FROM film
 WHERE description LIKE "%dog%" OR description LIKE "%cat%";
+SELECT title
+FROM film
+WHERE description REGEXP 'dog|cat'; -- opción con REGEXP
 
 -- 15: Hay algún actor o actriz que no aparezca en ninguna película en la tabla film_actor.
 -- esquema: actor (actor_id, first_name, last_name) <--> film_actor (actor_id, film_id) <--> film (film_id, title)
@@ -201,12 +210,15 @@ FROM film
 WHERE release_year >= 2005 AND release_year <= 2010; -- release_year entre 2005 y 2010, incluyendo 2005 y 2010
 SELECT title
 FROM film
+WHERE release_year BETWEEN 2005 AND 2010; -- release_year entre 2005 y 2010, incluyendo 2005 y 2010, con el BETWEEN
+SELECT title
+FROM film
 WHERE release_year > 2005 AND release_year < 2010; -- release_year entre 2005 y 2010, excluyendo 2005 y 2010
 
 -- 17: Encuentra el título de todas las películas que son de la misma categoría que "Family".
 -- esquema: category (category_id, name) <--> film_category (category_id, film_id) <--> film (film_id, title) 
 -- mi solución: unir las tablas film, film_category y category con INNER JOIN (quiero sólo las pelis de categoría "Family")
-SELECT f.title, c.name
+SELECT f.title
 FROM film AS f
 INNER JOIN film_category AS f_c
 ON f.film_id = f_c.film_id
@@ -251,7 +263,7 @@ HAVING COUNT(f.film_id) > 10;
 -- y que duración mayor a 2 horas (son 120 min) se refiere a length > 120 
 -- esquema: film (title, rating, length)
 SELECT title, rating, length
-FROM film; -- seviso los datos en film
+FROM film; -- reviso los datos en film
 SELECT title, rating, length
 FROM film
 WHERE rating = "R" AND length > 120;
@@ -304,6 +316,149 @@ ORDER BY cantidad_películas;
 
 -- 22: Encuentra el título de todas las películas que fueron alquiladas por más de 5 días. Utiliza una subconsulta para encontrar los rental_ids con una duración superior a 5 días 
 -- y luego selecciona las películas correspondientes.
+-- esquema: film (film_id, title) <--> inventory (film_id, inventory_id) <--> rental (inventory_id, rental_id, rental_date, return_date)
+-- miro qué hay en rental que me interese: rental_date, return_date son DATETIME e inventory_id la puedo unir al inventory_id de inventory
+SELECT inventory_id, rental_date, return_date
+FROM rental;
+-- uso la función TIMESTAMPDIFF por que calcula la diferencia entre dos valores de tipo fecha/hora y devuelve la diferencia en la unidad que le indique (DAY)
+-- su síntexis básica es TIMESTAMPDIFF(unidad, fecha_inicial, fecha_final) y calcula cuántos días hay de fecha_inicial hasta fecha_final
+SELECT rental_id, rental_date, return_date
+FROM rental
+WHERE TIMESTAMPDIFF(DAY, rental_date, return_date) > 5; -- muchos rental_id, deberían salir muchas películas 
+SELECT f.film_id, f.title
+FROM film AS f
+JOIN inventory AS i
+ON f.film_id = i.film_id
+JOIN rental AS r
+ON i.inventory_id =r.inventory_id;
+
+-- mi solución: uno las columnas con JOIN porque quiero sólo las coincidencias entre tablas, DISTINCT porque salen varias veces las mismas películas. 
+-- Esto es porque salen muchos rental_id del TIMESTAMPDIFF (muchas películas se han devuelto después de 5 días). Como la subconsulta es un conjunto de datos, 
+-- uso IN porque comprueba cada rental_id de la tabla rental con los rental_id de la subconsulta
+SELECT DISTINCT f.title
+FROM film AS f
+JOIN inventory AS i
+ON f.film_id = i.film_id
+JOIN rental AS r
+ON i.inventory_id =r.inventory_id
+WHERE r.rental_id IN (SELECT rental_id
+						FROM rental
+						WHERE TIMESTAMPDIFF(DAY, rental_date, return_date) > 5);
+                        
+-- mi solución usando CTEs: creo alquiler_más_5_días con la subconsulta donde tengo los rental_id que tardaron más de 5 días en devolver. Ésta es una tabla "ficticia", no existe fuera,
+-- aunque sí en la consulta, por lo que puedo unirla con un JOIN y comparar los rental_id de las tablas rental y alquiler_más_5_días. 
+-- No puedo hacer 2 CTEs porque no hay columnas en común en las 2 consultas a parte de rental_id (lo he intentado!)
+WITH alquiler_más_5_días AS (SELECT rental_id
+								FROM rental
+								WHERE TIMESTAMPDIFF(DAY, rental_date, return_date) > 5)
+SELECT DISTINCT f.title
+FROM film AS f
+JOIN inventory AS i
+ON f.film_id = i.film_id
+JOIN rental AS r
+ON i.inventory_id =r.inventory_id
+JOIN alquiler_más_5_días AS a_m_5_d
+ON r.rental_id = a_m_5_d.rental_id;
+
+-- 23: Encuentra el nombre y apellido de los actores que no han actuado en ninguna película de la categoría "Horror". Utiliza una subconsulta para encontrar 
+-- los actores que han actuado en películas de la categoría "Horror" y luego exclúyelos de la lista de actores.
+-- esquema: actor (actor_id, first_name, last_name) --> film_actor (film_id, actor_id) --> film (film_id, title) --> film_category (film_id, category_id) --> category (category_id, name)
+SELECT a.actor_id, a.first_name, a.last_name
+FROM actor AS a
+INNER JOIN film_actor AS f_a
+ON a.actor_id = f_a.actor_id
+INNER JOIN film AS f
+ON f_a.film_id = f.film_id
+INNER JOIN film_category AS f_c
+ON f.film_id = f_c.film_id
+INNER JOIN category AS c
+ON f_c.category_id = c.category_id
+WHERE c.name = "Horror"; -- 317 actores en la subconsulta, que hay que excluir de la consulta
+
+-- mi solución: en la consulta saco los actores cuyos actor_id NO ESTÉN en la subconsulta, que nos dice quienes sí han participado en películas de horror
+SELECT a.first_name, a.last_name
+FROM actor AS a
+WHERE a.actor_id NOT IN (SELECT a.actor_id
+							FROM actor AS a
+							INNER JOIN film_actor AS f_a
+							ON a.actor_id = f_a.actor_id
+							INNER JOIN film AS f
+							ON f_a.film_id = f.film_id
+							INNER JOIN film_category AS f_c
+							ON f.film_id = f_c.film_id
+							INNER JOIN category AS c
+							ON f_c.category_id = c.category_id
+							WHERE c.name = "Horror")
+ORDER BY a.last_name; -- me salen 44 actores que no han participado en películas de Horror
+
+-- mi solución usando CTEs: aquí sí tengo actor_id en las 2. Lo que cambia está en el último SELECT: uso los nombres de las tablas ficticias, uso un LEFT JOIN porque 
+-- quiero a los actores que no estén en la subconsulta y le digo ésta condición en el WHERE horror.actor_id IS NULL, que es "donde no estén los actores de las pelis de horror"
+WITH actores_pelis_horror AS (SELECT a.actor_id
+								FROM actor AS a
+								INNER JOIN film_actor AS f_a
+								ON a.actor_id = f_a.actor_id
+								INNER JOIN film AS f
+								ON f_a.film_id = f.film_id
+								INNER JOIN film_category AS f_c
+								ON f.film_id = f_c.film_id
+								INNER JOIN category AS c
+								ON f_c.category_id = c.category_id
+								WHERE c.name = "Horror"), 
+todos_los_actores AS (SELECT a.actor_id, a.first_name, a.last_name
+                         FROM actor AS a)
+SELECT todos.first_name, todos.last_name
+FROM todos_los_actores AS todos
+LEFT JOIN actores_pelis_horror AS horror
+ON todos.actor_id = horror.actor_id
+WHERE horror.actor_id IS NULL
+ORDER BY todos.last_name;
+
+-- 24: Encuentra el título de las películas que son comedias (Comedy) y tienen una duración mayor a 180 minutos en la tabla film.
+-- esquema: film (film_id, title, length) --> film_category (film_id, category_id) --> category (category_id, name)
+SELECT title, length
+FROM film
+WHERE length > 180; -- películas con duración > 180 min
+
+-- mi solución: unir las tablas con JOIN (cólo quiero películas q sean comedia) e incluir un WHERE con las 2 condiciones c.name = "Comedy" AND f.length > 180
+SELECT f. title
+FROM film AS f
+JOIN film_category AS f_c
+ON f.film_id = f_c.film_id
+JOIN category AS c
+ON f_c.category_id = c.category_id
+WHERE c.name = "Comedy" AND f.length > 180; 
+
+-- BONUS: 
+-- 25.Encuentra todos los actores que han actuado juntos en al menos una película. 
+-- La consulta debe mostrar el nombre y apellido de los actores y el número de películas en las que han actuado juntos.
+-- esquema: actor (actor_id, first_name, last_name) --> film_actor (film_id, actor_id) --> film (film_id, title)
+-- entiendo que queremos comparar actores, así que sería hacer un SELF JOIN:
+SELECT a1.first_name AS nombre1_actor1,
+		a1.last_name AS apellido_actor1,
+		a2.first_name AS nombre_actor2,
+		a2.last_name AS apellido_actor2,
+        COUNT(film_id)
+FROM actor As a1, actor As a2
+JOIN film_actor -- pero hay q unirla a film_actor con un JOIN
+ON actor_id  -- y ahora con qué lo uno? con a1 o con a2?
+WHERE a1.actor_id <> a2.actor_id -- no compara consigo mismo
+AND film_id = film_id; -- misma película: necesito 2 film_id voy a unirlo con 2 film_actor
+
+-- mi solución: no sale
+-- lo he intentado pero no comprende qué es a1.actor_id en el WHERE y si lo incluyo en el SELECT también me dice que es Unknown
+-- probablemente haya algo más erróneo...
+SELECT a1.first_name AS nombre1_actor1,
+		a1.last_name AS apellido_actor1,
+		a2.first_name AS nombre_actor2,
+		a2.last_name AS apellido_actor2,
+        COUNT(f_a1.film_id)
+FROM actor As a1, actor As a2
+JOIN film_actor AS f_a1
+ON a1.actor_id = f_a1.actor_id
+JOIN film_actor AS f_a2
+ON a2.actor_id = f_a2.actor_id
+WHERE a1.actor_id <> a2.actor_id -- no compara consigo mismo
+AND f_a1.film_id = f_a2.film_id; -- misma película
 
 
 
